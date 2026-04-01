@@ -1,0 +1,9 @@
+{
+  "name": "VfiltforL",
+  "description": "An interactive 3D audio visualizer with MIDI controller support.",
+  "requestFramePermissions": [
+    "microphone",
+    "display-capture"
+  ],
+  "prompt": ""
+}

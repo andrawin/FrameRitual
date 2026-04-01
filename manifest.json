@@ -1,0 +1,18 @@
+
+{
+  "name": "Live Audio Visualizer 3D",
+  "short_name": "Visualizer",
+  "description": "Native-feeling 3D Audio Visualizer with Liquid Orb and Volumetric Text.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3659/3659898.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
