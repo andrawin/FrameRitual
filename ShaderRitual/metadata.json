@@ -1,0 +1,8 @@
+{
+  "name": "Shader Ritual",
+  "description": "Audio-reactive Shadertoy-style shader playground with per-element band allocation.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
