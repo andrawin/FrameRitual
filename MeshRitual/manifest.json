@@ -1,0 +1,9 @@
+{
+  "name": "Mesh Ritual",
+  "short_name": "MeshRitual",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#05060a",
+  "theme_color": "#000000",
+  "icons": []
+}

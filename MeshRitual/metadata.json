@@ -1,0 +1,8 @@
+{
+  "name": "Mesh Ritual",
+  "description": "Upload a .glb, break it into parts or fracture it, and make each piece audio-reactive.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
