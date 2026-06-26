@@ -47,6 +47,10 @@ export class MeshRitualView extends LitElement {
   private fragmentCount = 0;
   private modelRadius = 1;
 
+  private captureMesh!: THREE.Mesh;
+  private captureTexture: THREE.VideoTexture | null = null;
+  private captureVideo: HTMLVideoElement | null = null;
+
   private prevTime = performance.now();
   private currentModelUrl = '';
   private lastBands: Bands = { low: 0, mid: 0, high: 0, rawLow: 0, rawMid: 0, rawHigh: 0 };
@@ -66,6 +70,17 @@ export class MeshRitualView extends LitElement {
   @property()
   set inputNode(node: AudioNode) {
     this.analyser = new Analyser(node);
+  }
+
+  private _captureStream: MediaStream | null = null;
+  @property()
+  set captureStream(stream: MediaStream | null) {
+    if (this._captureStream === stream) return;
+    this._captureStream = stream;
+    if (this.renderer) this.initCapture();
+  }
+  get captureStream() {
+    return this._captureStream;
   }
 
   static styles = css`
@@ -114,6 +129,15 @@ export class MeshRitualView extends LitElement {
 
     this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 2000);
     this.camera.position.set(0, 0, 5);
+    // Camera is in the scene graph so a camera-attached capture plane renders.
+    this.scene.add(this.camera);
+
+    this.captureMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 1, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    this.captureMesh.visible = false;
+    this.scene.add(this.captureMesh);
 
     this.controls = new OrbitControls(this.camera, this.canvas);
     this.controls.enableDamping = true;
@@ -134,8 +158,77 @@ export class MeshRitualView extends LitElement {
     window.addEventListener('resize', () => this.resize());
     if (this.analyser) this.analyser.smoothing = this.config.fftSmoothing;
 
+    if (this._captureStream) this.initCapture();
     if (this._modelUrl) this.loadModel(this._modelUrl);
     this.renderLoop();
+  }
+
+  private async initCapture() {
+    const mat = this.captureMesh.material as THREE.MeshBasicMaterial;
+    if (this.captureVideo) {
+      this.captureVideo.pause();
+      this.captureVideo.srcObject = null;
+      this.captureVideo = null;
+    }
+    if (this.captureTexture) {
+      this.captureTexture.dispose();
+      this.captureTexture = null;
+    }
+    if (this._captureStream) {
+      const video = document.createElement('video');
+      video.srcObject = this._captureStream;
+      video.muted = true;
+      video.playsInline = true;
+      video.autoplay = true;
+      this.captureVideo = video;
+      try {
+        await video.play();
+      } catch (e) {}
+      this.captureTexture = new THREE.VideoTexture(video);
+      this.captureTexture.colorSpace = THREE.SRGBColorSpace;
+      this.captureTexture.minFilter = THREE.LinearFilter;
+      this.captureTexture.magFilter = THREE.LinearFilter;
+      mat.map = this.captureTexture;
+      mat.needsUpdate = true;
+    } else {
+      mat.map = null;
+      mat.needsUpdate = true;
+      this.captureMesh.visible = false;
+    }
+  }
+
+  private captureAspect(): number {
+    const w = this.captureVideo?.videoWidth || 16;
+    const h = this.captureVideo?.videoHeight || 9;
+    return h > 0 ? w / h : 16 / 9;
+  }
+
+  private applyCapture(bands: Bands) {
+    if (!this.captureMesh) return;
+    const c = this.config.capture;
+    if (!c) return;
+    const mat = this.captureMesh.material as THREE.MeshBasicMaterial;
+    this.captureMesh.visible = !!this.captureTexture && c.visible && c.opacity > 0;
+    if (!this.captureMesh.visible) return;
+
+    mat.opacity = c.opacity;
+    const react = c.reactive ? 1 + (bands as any)[c.reactiveBand] * 0.2 : 1;
+
+    if (c.mode === 'background') {
+      if (this.captureMesh.parent !== this.camera) this.camera.add(this.captureMesh);
+      const dist = this.camera.far * 0.5;
+      const h = 2 * Math.tan((this.camera.fov * Math.PI) / 360) * dist;
+      const w = h * this.camera.aspect;
+      this.captureMesh.position.set(0, 0, -dist);
+      this.captureMesh.quaternion.identity();
+      this.captureMesh.scale.set(w * c.scale * react, h * c.scale * react, 1);
+    } else {
+      if (this.captureMesh.parent !== this.scene) this.scene.add(this.captureMesh);
+      const base = this.modelRadius * 2.2 * c.scale * react;
+      this.captureMesh.position.set(0, 0, 0);
+      this.captureMesh.quaternion.copy(this.camera.quaternion); // billboard toward camera
+      this.captureMesh.scale.set(base, base / this.captureAspect(), 1);
+    }
   }
 
   private resize() {
@@ -292,6 +385,8 @@ export class MeshRitualView extends LitElement {
 
     if (this.config.mode === 'parts') this.animateParts(bands, dt);
     else this.animateFracture(bands, dt);
+
+    this.applyCapture(bands);
 
     this.controls.update();
     this.composer.render();

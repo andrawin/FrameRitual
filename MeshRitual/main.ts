@@ -37,6 +37,14 @@ function defaultConfig(): MeshRitualConfig {
       distribute: true,
       visible: true,
     },
+    capture: {
+      opacity: 0.85,
+      scale: 1.0,
+      mode: 'background',
+      reactive: true,
+      reactiveBand: 'low',
+      visible: true,
+    },
   };
 }
 
@@ -54,6 +62,9 @@ export class MeshRitualApp extends LitElement {
   @state() partInfos: PartInfo[] = [];
   @state() modelUrl = '';
   @state() modelName = '';
+
+  @state() isCapturing = false;
+  @state() private captureStream: MediaStream | null = null;
 
   // MIDI state
   @state() lastMidiMsg = 'Ready for MIDI...';
@@ -81,6 +92,7 @@ export class MeshRitualApp extends LitElement {
         sensitivity: { ...base.sensitivity, ...(p.sensitivity || {}) },
         thresholds: { ...base.thresholds, ...(p.thresholds || {}) },
         fracture: { ...base.fracture, ...(p.fracture || {}) },
+        capture: { ...base.capture, ...(p.capture || {}) },
         parts: {}, // parts are rebuilt per loaded model
       };
     } catch (e) {
@@ -275,6 +287,7 @@ export class MeshRitualApp extends LitElement {
       rotateSpeed: { min: 0, max: 5 },
       bloom: { min: 0, max: 2 },
       'fracture.fragments': { min: 4, max: 200 },
+      'capture.scale': { min: 0.1, max: 4 },
     };
     if (rangeMap[path]) return rangeMap[path];
     if (path.endsWith('.amount') || path.endsWith('Amount')) return { min: 0, max: 3 };
@@ -417,6 +430,37 @@ export class MeshRitualApp extends LitElement {
   private onModelError = (e: CustomEvent<string>) => {
     this.error = `Model error: ${e.detail}`;
     this.status = 'Load failed';
+  };
+
+  /* ----------------------- Screen capture ------------------------ */
+
+  private toggleCapture = async () => {
+    if (this.isCapturing) {
+      this.captureStream?.getTracks().forEach((t) => t.stop());
+      this.captureStream = null;
+      this.isCapturing = false;
+      return;
+    }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      this.error = 'Screen capture not supported in this browser.';
+      return;
+    }
+    try {
+      this.error = '';
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'window' } as any,
+        audio: false,
+      });
+      this.captureStream = stream;
+      this.isCapturing = true;
+      stream.getTracks()[0].addEventListener('ended', () => {
+        this.captureStream = null;
+        this.isCapturing = false;
+      });
+    } catch (err: any) {
+      this.error = `Capture failed: ${err.message}`;
+      this.isCapturing = false;
+    }
   };
 
   private autoDistribute = () => {
@@ -587,6 +631,30 @@ export class MeshRitualApp extends LitElement {
               </div>
             `}
 
+        <!-- SCREEN CAPTURE -->
+        <div class="setting-group">
+          <span class="group-title">Screen Capture</span>
+          <div class="control-row action-row">
+            <button class="action-btn ${this.isCapturing ? 'active' : ''}" @click=${this.toggleCapture}>
+              ${this.isCapturing ? 'Stop Capture' : 'Share a Window'}
+            </button>
+            <button class="vis-toggle ${this.config.capture.visible ? 'on' : 'off'}"
+              @click=${() => this.updateConfig('capture.visible', !this.config.capture.visible)}>${this.config.capture.visible ? 'SHOWN' : 'HIDDEN'}</button>
+          </div>
+          ${this.renderSlider('Opacity', 'capture.opacity', 0, 1, 0.05)}
+          ${this.renderSlider('Scale', 'capture.scale', 0.1, 4, 0.1)}
+          <div class="control-row"><label>Projection</label>
+            <select class="small" .value=${this.config.capture.mode} @change=${(e: any) => this.updateConfig('capture.mode', e.target.value)}>
+              <option value="background">Rear Wall</option>
+              <option value="floating">Floating Plane</option>
+            </select>
+          </div>
+          <div class="control-row"><label>Audio reactive</label>
+            <input type="checkbox" ?checked=${this.config.capture.reactive} @change=${(e: any) => this.updateConfig('capture.reactive', e.target.checked)} />
+            ${this.renderBandSelect('capture.reactiveBand', this.config.capture.reactiveBand)}
+          </div>
+        </div>
+
         <!-- SCENE -->
         <div class="setting-group">
           <span class="group-title">Scene</span>
@@ -669,6 +737,7 @@ export class MeshRitualApp extends LitElement {
           .config=${this.config}
           .inputNode=${this.audioNode}
           .modelUrl=${this.modelUrl}
+          .captureStream=${this.captureStream}
           @parts-changed=${this.onPartsChanged}
           @model-error=${this.onModelError}></mesh-ritual-view>
       </div>

@@ -17,6 +17,16 @@ export interface PartSetting {
   visible: boolean;
 }
 
+/** Screen-capture projection plane settings. */
+export interface CaptureSetting {
+  opacity: number;
+  scale: number;
+  mode: 'background' | 'floating';
+  reactive: boolean;
+  reactiveBand: Band;
+  visible: boolean;
+}
+
 /** Group settings for procedural fracture mode. */
 export interface FractureSetting {
   fragments: number;
@@ -42,6 +52,7 @@ export interface MeshRitualConfig {
   /** Per-part settings, keyed by part id (rebuilt when a model loads). */
   parts: Record<string, PartSetting>;
   fracture: FractureSetting;
+  capture: CaptureSetting;
 }
 
 /** Live audio band readout (post-sensitivity raw + post-gate values). */

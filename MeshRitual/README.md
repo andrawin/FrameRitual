@@ -24,6 +24,11 @@ geometry groups indexing the shared cloned-material array. Fragments react as a 
 - **Distribute across bands** — split the fragments into thirds driven by Low/Mid/High
 - **Fragment count** (4–200) and visibility
 
+### Screen Capture
+Share a window/screen (`getDisplayMedia`) and project it into the scene as a
+**Rear Wall** backdrop or a camera-facing **Floating Plane**, with opacity,
+scale, and optional audio-reactive pulsing wired to a band.
+
 Plus global **Scene** (auto-rotate, speed, bloom), **Response Profile**
 (smoothing + per-band gain), **Noise Gates**, and **MIDI-learn** on every amount slider.
 Drag to orbit, scroll to zoom (OrbitControls).
