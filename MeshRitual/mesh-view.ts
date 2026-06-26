@@ -43,10 +43,9 @@ export class MeshRitualView extends LitElement {
   private partMap = new Map<string, Part>();
   private fractureGroup: THREE.Group | null = null;
   private fragments: Fragment[] = [];
-  private fractureMaterial: THREE.MeshStandardMaterial | null = null;
+  private fractureMaterials: THREE.MeshStandardMaterial[] = [];
   private fragmentCount = 0;
   private modelRadius = 1;
-  private baseColor = new THREE.Color(0x8899aa);
 
   private prevTime = performance.now();
   private currentModelUrl = '';
@@ -162,8 +161,8 @@ export class MeshRitualView extends LitElement {
     this.partMap.clear();
     this.fractureGroup = null;
     this.fragments = [];
-    this.fractureMaterial?.dispose();
-    this.fractureMaterial = null;
+    for (const m of this.fractureMaterials) m.dispose();
+    this.fractureMaterials = [];
     this.fragmentCount = 0;
     this.modelRoot.rotation.set(0, 0, 0);
   }
@@ -204,10 +203,6 @@ export class MeshRitualView extends LitElement {
       this.partMap.clear();
       for (const p of this.parts) this.partMap.set(p.id, p);
 
-      // Pick a base colour for fracture fragments from the first material found.
-      const firstMat = this.parts[0]?.materials[0];
-      if (firstMat?.color) this.baseColor = firstMat.color.clone();
-
       this.dispatchEvent(
         new CustomEvent<PartInfo[]>('parts-changed', {
           detail: this.parts.map((p) => ({ id: p.id, name: p.name })),
@@ -243,8 +238,8 @@ export class MeshRitualView extends LitElement {
       this.fractureGroup.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
       this.fractureGroup = null;
       this.fragments = [];
-      this.fractureMaterial?.dispose();
-      this.fractureMaterial = null;
+      for (const m of this.fractureMaterials) m.dispose();
+      this.fractureMaterials = [];
     }
     if (want > 0 && this.model) {
       // Reset parts to their rest transform so fracture reads the model at rest,
@@ -259,11 +254,11 @@ export class MeshRitualView extends LitElement {
       const savedRot = this.modelRoot.rotation.clone();
       this.modelRoot.rotation.set(0, 0, 0);
       this.modelRoot.updateWorldMatrix(true, true);
-      const built = fracture(this.model, new THREE.Vector3(), want, this.baseColor);
+      const built = fracture(this.model, new THREE.Vector3(), want);
       this.modelRoot.rotation.copy(savedRot);
       this.fractureGroup = built.group;
       this.fragments = built.fragments;
-      this.fractureMaterial = built.material;
+      this.fractureMaterials = built.materials;
       this.modelRoot.add(this.fractureGroup);
     }
     this.fragmentCount = want;
@@ -363,7 +358,7 @@ export class MeshRitualView extends LitElement {
       frag.mesh.quaternion.setFromAxisAngle(frag.axis, frag.spin);
       emissive = Math.max(emissive, ex, sc);
     }
-    if (this.fractureMaterial) this.fractureMaterial.emissiveIntensity = emissive * 2.0;
+    for (const m of this.fractureMaterials) m.emissiveIntensity = emissive * 2.0;
   }
 
   protected render() {

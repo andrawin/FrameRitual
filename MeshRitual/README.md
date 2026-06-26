@@ -17,7 +17,9 @@ you can independently:
 
 ### 2. Fracture
 Procedurally shatters the model into N fragments (k-means triangle clustering —
-works even on a single fused mesh). Fragments react as a group:
+works even on a single fused mesh). Each fragment keeps the **original
+materials** (colour *and* texture) of the triangles it was built from, via
+geometry groups indexing the shared cloned-material array. Fragments react as a group:
 - **Explode / Scale / Spin**, each wired to a band with its own amount
 - **Distribute across bands** — split the fragments into thirds driven by Low/Mid/High
 - **Fragment count** (4–200) and visibility
