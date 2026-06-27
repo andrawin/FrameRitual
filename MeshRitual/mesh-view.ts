@@ -393,6 +393,9 @@ export class MeshRitualView extends LitElement {
     }
     const bands = this.lastBands;
 
+    // Manual model size (scales parts + fragments uniformly).
+    this.modelRoot.scale.setScalar(this.config.modelScale ?? 1);
+
     const physicsActive =
       this.config.mode === 'fracture' && this.config.fracture.physics?.enabled && !!this.fractureGroup;
 

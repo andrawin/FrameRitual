@@ -22,6 +22,7 @@ function defaultConfig(): MeshRitualConfig {
     sensitivity: { low: 1.5, mid: 1.5, high: 2.5 },
     thresholds: { low: 0.15, mid: 0.15, high: 0.15 },
     mode: 'parts',
+    modelScale: 1.0,
     autoRotate: true,
     rotateSpeed: 1.0,
     bloom: 0.6,
@@ -301,6 +302,7 @@ export class MeshRitualApp extends LitElement {
       'sensitivity.high': { min: 0, max: 10 },
       fftSmoothing: { min: 0, max: 0.95 },
       rotateSpeed: { min: 0, max: 5 },
+      modelScale: { min: 0.1, max: 5 },
       bloom: { min: 0, max: 2 },
       'fracture.fragments': { min: 4, max: 200 },
       'capture.scale': { min: 0.1, max: 4 },
@@ -726,6 +728,7 @@ export class MeshRitualApp extends LitElement {
         <!-- SCENE -->
         <div class="setting-group">
           <span class="group-title">Scene</span>
+          ${this.renderSlider('Model Size', 'modelScale', 0.1, 5, 0.05)}
           <div class="control-row"><label>Auto-rotate</label>
             <input type="checkbox" ?checked=${this.config.autoRotate} @change=${(e: any) => this.updateConfig('autoRotate', e.target.checked)} />
           </div>

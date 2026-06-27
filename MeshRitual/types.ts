@@ -66,6 +66,7 @@ export interface MeshRitualConfig {
   sensitivity: { low: number; mid: number; high: number };
   thresholds: { low: number; mid: number; high: number };
   mode: 'parts' | 'fracture';
+  modelScale: number;
   autoRotate: boolean;
   rotateSpeed: number;
   bloom: number;
