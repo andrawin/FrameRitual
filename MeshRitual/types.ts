@@ -27,6 +27,25 @@ export interface CaptureSetting {
   visible: boolean;
 }
 
+/** What a detected beat does to the fragments in physics mode. */
+export type BeatAction = 'burst' | 'implode' | 'pulse' | 'alternate';
+
+/** Rigid-body-ish simulation settings for fracture fragments. */
+export interface PhysicsSetting {
+  enabled: boolean;
+  gravity: number;
+  burstStrength: number;
+  spin: number;
+  restitution: number;
+  floor: boolean;
+  /** Beat trigger: rising edge of this band past the threshold fires an action. */
+  beatBand: Band;
+  beatThreshold: number;
+  beatAction: BeatAction;
+  /** Spring strength used to suck fragments back to rest on implode. */
+  implodeStrength: number;
+}
+
 /** Group settings for procedural fracture mode. */
 export interface FractureSetting {
   fragments: number;
@@ -39,6 +58,7 @@ export interface FractureSetting {
   /** Distribute fragments across low/mid/high (each third driven by one band). */
   distribute: boolean;
   visible: boolean;
+  physics: PhysicsSetting;
 }
 
 export interface MeshRitualConfig {

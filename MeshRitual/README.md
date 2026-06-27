@@ -24,6 +24,21 @@ geometry groups indexing the shared cloned-material array. Fragments react as a 
 - **Distribute across bands** — split the fragments into thirds driven by Low/Mid/High
 - **Fragment count** (4–200) and visibility
 
+#### Physics (optional)
+Turn on **Physics** and fragments become rigid-ish bodies: a **burst** launches
+them outward + upward with random tumble, **gravity** pulls them down, and they
+**bounce/settle** on a floor. **Implode** springs them back together; **Reset**
+snaps them instantly to rest.
+
+Trigger it two ways:
+- **Manually** — 💥 Burst / 🧲 Implode / ↺ Reset buttons.
+- **On a beat** — pick a trigger band + sensitivity; each onset fires an action:
+  `Burst`, `Implode`, `Pulse` (burst then auto-implode), or `Alternate`
+  (toggles burst/implode every beat).
+
+Tunables: gravity, burst force, tumble spin, implode pull, floor on/off, bounce.
+(Scale stays audio-reactive on top of the simulation.)
+
 ### Screen Capture
 Share a window/screen (`getDisplayMedia`) and project it into the scene as a
 **Rear Wall** backdrop or a camera-facing **Floating Plane**, with opacity,

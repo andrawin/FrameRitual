@@ -36,6 +36,18 @@ function defaultConfig(): MeshRitualConfig {
       scaleAmount: 0.5,
       distribute: true,
       visible: true,
+      physics: {
+        enabled: false,
+        gravity: 1.0,
+        burstStrength: 1.0,
+        spin: 2.0,
+        restitution: 0.4,
+        floor: true,
+        beatBand: 'low',
+        beatThreshold: 0.4,
+        beatAction: 'pulse',
+        implodeStrength: 6.0,
+      },
     },
     capture: {
       opacity: 0.85,
@@ -91,7 +103,11 @@ export class MeshRitualApp extends LitElement {
         ...p,
         sensitivity: { ...base.sensitivity, ...(p.sensitivity || {}) },
         thresholds: { ...base.thresholds, ...(p.thresholds || {}) },
-        fracture: { ...base.fracture, ...(p.fracture || {}) },
+        fracture: {
+          ...base.fracture,
+          ...(p.fracture || {}),
+          physics: { ...base.fracture.physics, ...(p.fracture?.physics || {}) },
+        },
         capture: { ...base.capture, ...(p.capture || {}) },
         parts: {}, // parts are rebuilt per loaded model
       };
@@ -288,6 +304,12 @@ export class MeshRitualApp extends LitElement {
       bloom: { min: 0, max: 2 },
       'fracture.fragments': { min: 4, max: 200 },
       'capture.scale': { min: 0.1, max: 4 },
+      'fracture.physics.gravity': { min: 0, max: 4 },
+      'fracture.physics.burstStrength': { min: 0, max: 4 },
+      'fracture.physics.spin': { min: 0, max: 5 },
+      'fracture.physics.restitution': { min: 0, max: 0.95 },
+      'fracture.physics.implodeStrength': { min: 1, max: 20 },
+      'fracture.physics.beatThreshold': { min: 0.05, max: 1 },
     };
     if (rangeMap[path]) return rangeMap[path];
     if (path.endsWith('.amount') || path.endsWith('Amount')) return { min: 0, max: 3 };
@@ -479,6 +501,13 @@ export class MeshRitualApp extends LitElement {
     this.persist();
   };
 
+  /* --------------------------- Physics --------------------------- */
+
+  private triggerPhysics = (action: 'burst' | 'implode' | 'reset') => {
+    const view = this.shadowRoot?.querySelector('mesh-ritual-view') as any;
+    view?.[action]?.();
+  };
+
   /* --------------------------- Config ---------------------------- */
 
   private persist = () => {
@@ -575,6 +604,45 @@ export class MeshRitualApp extends LitElement {
         ${this.renderBandSelect('fracture.spinBand', f.spinBand)}
       </div>
       ${this.renderSlider('Spin Amt', 'fracture.spinAmount', 0, 3, 0.05)}
+      ${this.renderPhysics()}
+    `;
+  }
+
+  private renderPhysics() {
+    const p = this.config.fracture.physics;
+    return html`
+      <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;">
+        <div class="control-row"><label><strong>Physics</strong> (burst · fall · tumble)</label>
+          <input type="checkbox" ?checked=${p.enabled} @change=${(e: any) => this.updateConfig('fracture.physics.enabled', e.target.checked)} />
+        </div>
+        ${!p.enabled
+          ? html`<div class="empty-hint">When on, fragments fly apart and fall under gravity. Trigger a burst/implode by hand or on a beat.</div>`
+          : html`
+              <div class="control-row action-row" style="margin-bottom:10px;">
+                <button class="action-btn small" @click=${() => this.triggerPhysics('burst')}>💥 Burst</button>
+                <button class="action-btn small" @click=${() => this.triggerPhysics('implode')}>🧲 Implode</button>
+                <button class="action-btn small" @click=${() => this.triggerPhysics('reset')}>↺ Reset</button>
+              </div>
+              ${this.renderSlider('Gravity', 'fracture.physics.gravity', 0, 4, 0.05)}
+              ${this.renderSlider('Burst Force', 'fracture.physics.burstStrength', 0, 4, 0.05)}
+              ${this.renderSlider('Tumble Spin', 'fracture.physics.spin', 0, 5, 0.05)}
+              ${this.renderSlider('Implode Pull', 'fracture.physics.implodeStrength', 1, 20, 0.5)}
+              <div class="control-row"><label>Floor collision</label>
+                <input type="checkbox" ?checked=${p.floor} @change=${(e: any) => this.updateConfig('fracture.physics.floor', e.target.checked)} />
+              </div>
+              ${this.renderSlider('Bounce', 'fracture.physics.restitution', 0, 0.95, 0.05)}
+              <div class="control-row"><label>Beat trigger</label>
+                ${this.renderBandSelect('fracture.physics.beatBand', p.beatBand)}
+                <select class="small" .value=${p.beatAction} @change=${(e: any) => this.updateConfig('fracture.physics.beatAction', e.target.value)}>
+                  <option value="burst">Burst</option>
+                  <option value="implode">Implode</option>
+                  <option value="pulse">Pulse</option>
+                  <option value="alternate">Alternate</option>
+                </select>
+              </div>
+              ${this.renderSlider('Beat Sensitivity', 'fracture.physics.beatThreshold', 0.05, 1, 0.01)}
+            `}
+      </div>
     `;
   }
 

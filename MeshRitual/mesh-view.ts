@@ -53,6 +53,16 @@ export class MeshRitualView extends LitElement {
 
   private prevTime = performance.now();
   private currentModelUrl = '';
+
+  // Physics state.
+  private prevBeatVal = 0;
+  private lastBeat = 0;
+  private imploding = false;
+  private beatToggle = false;
+  private pulseImplodeAt = 0;
+  private physicsWasEnabled = false;
+  private readonly IDENTITY = new THREE.Quaternion();
+  private tmpVec = new THREE.Vector3();
   private lastBands: Bands = { low: 0, mid: 0, high: 0, rawLow: 0, rawMid: 0, rawHigh: 0 };
 
   @property({ type: Object }) config!: MeshRitualConfig;
@@ -107,6 +117,10 @@ export class MeshRitualView extends LitElement {
       if (this.analyser) this.analyser.smoothing = this.config.fftSmoothing;
       if (this.bloomPass) this.bloomPass.strength = this.config.bloom;
       this.syncFracture();
+      // Reset fragments to rest when physics is first switched on.
+      const pe = this.config.fracture.physics?.enabled ?? false;
+      if (pe && !this.physicsWasEnabled) this.reset();
+      this.physicsWasEnabled = pe;
     }
   }
 
@@ -379,12 +393,28 @@ export class MeshRitualView extends LitElement {
     }
     const bands = this.lastBands;
 
-    if (this.config.autoRotate) {
+    const physicsActive =
+      this.config.mode === 'fracture' && this.config.fracture.physics?.enabled && !!this.fractureGroup;
+
+    // Physics needs a non-rotating model frame so gravity stays "down".
+    if (physicsActive) {
+      this.modelRoot.rotation.set(0, 0, 0);
+    } else if (this.config.autoRotate) {
       this.modelRoot.rotation.y += dt * this.config.rotateSpeed * 0.5;
     }
 
-    if (this.config.mode === 'parts') this.animateParts(bands, dt);
-    else this.animateFracture(bands, dt);
+    if (this.config.mode === 'parts') {
+      this.animateParts(bands, dt);
+    } else if (physicsActive) {
+      this.detectBeat(bands);
+      if (this.pulseImplodeAt && now >= this.pulseImplodeAt) {
+        this.implode();
+        this.pulseImplodeAt = 0;
+      }
+      this.animateFracturePhysics(bands, dt);
+    } else {
+      this.animateFracture(bands, dt);
+    }
 
     this.applyCapture(bands);
 
@@ -454,6 +484,141 @@ export class MeshRitualView extends LitElement {
       emissive = Math.max(emissive, ex, sc);
     }
     for (const m of this.fractureMaterials) m.emissiveIntensity = emissive * 2.0;
+  }
+
+  /* --------------------------- Physics --------------------------- */
+
+  /** Fire an action on the rising edge of the trigger band past its threshold. */
+  private detectBeat(bands: Bands) {
+    const p = this.config.fracture.physics;
+    const v = (bands as any)[p.beatBand] ?? 0;
+    const now = performance.now();
+    if (v > p.beatThreshold && this.prevBeatVal <= p.beatThreshold && now - this.lastBeat > 120) {
+      this.lastBeat = now;
+      switch (p.beatAction) {
+        case 'burst':
+          this.burst();
+          break;
+        case 'implode':
+          this.implode();
+          break;
+        case 'pulse':
+          this.burst();
+          this.pulseImplodeAt = now + 350;
+          break;
+        case 'alternate':
+          this.beatToggle = !this.beatToggle;
+          this.beatToggle ? this.burst() : this.implode();
+          break;
+      }
+    }
+    this.prevBeatVal = v;
+  }
+
+  /** Launch every fragment outward + upward with random tumble. Manual or beat. */
+  burst() {
+    if (!this.fragments.length) return;
+    const p = this.config.fracture.physics;
+    const r = this.modelRadius;
+    this.imploding = false;
+    for (const f of this.fragments) {
+      f.resting = false;
+      const lateral = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.3, Math.random() - 0.5).multiplyScalar(0.5 * r);
+      f.vel.copy(f.dir).multiplyScalar(p.burstStrength * r * (1.2 + f.phase)).add(lateral);
+      f.vel.y += p.burstStrength * r * 0.8;
+      f.angVel.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(p.spin * (1 + f.phase) * 3);
+    }
+  }
+
+  /** Spring every fragment back toward its rest position. Manual or beat. */
+  implode() {
+    if (!this.fragments.length) return;
+    this.imploding = true;
+    for (const f of this.fragments) f.resting = false;
+  }
+
+  /** Instantly snap all fragments back to rest. Manual reset. */
+  reset() {
+    this.imploding = false;
+    this.pulseImplodeAt = 0;
+    for (const f of this.fragments) {
+      f.mesh.position.copy(f.base);
+      f.mesh.quaternion.copy(this.IDENTITY);
+      f.mesh.scale.setScalar(1);
+      f.vel.set(0, 0, 0);
+      f.angVel.set(0, 0, 0);
+      f.resting = true;
+    }
+  }
+
+  private animateFracturePhysics(bands: Bands, dt: number) {
+    if (!this.fractureGroup) return;
+    const f2 = this.config.fracture;
+    const p = f2.physics;
+    this.fractureGroup.visible = f2.visible;
+    if (!f2.visible) return;
+
+    const r = this.modelRadius;
+    const g = p.gravity * r * 3.0;
+    const floorY = -r;
+    const val = (b: string, amt: number) => (b === 'none' ? 0 : (bands as any)[b] * amt);
+
+    let maxSc = 0;
+    let active = 0;
+
+    for (const f of this.fragments) {
+      // Scale stays audio-reactive even while the body simulates.
+      const scaleBand = f2.distribute ? f.band : f2.scaleBand;
+      const sc = val(scaleBand, f2.scaleAmount);
+      f.mesh.scale.setScalar(1 + sc);
+      maxSc = Math.max(maxSc, sc);
+
+      if (f.resting && !this.imploding) continue;
+      active++;
+
+      if (this.imploding) {
+        this.tmpVec.copy(f.base).sub(f.mesh.position);
+        f.vel.addScaledVector(this.tmpVec, p.implodeStrength * dt);
+        f.vel.multiplyScalar(Math.max(0, 1 - 4 * dt));
+        f.mesh.position.addScaledVector(f.vel, dt);
+        f.mesh.quaternion.slerp(this.IDENTITY, Math.min(1, 6 * dt));
+        f.angVel.multiplyScalar(Math.max(0, 1 - 6 * dt));
+        if (this.tmpVec.length() < 0.02 * r && f.vel.length() < 0.05 * r) {
+          f.mesh.position.copy(f.base);
+          f.mesh.quaternion.copy(this.IDENTITY);
+          f.vel.set(0, 0, 0);
+          f.angVel.set(0, 0, 0);
+          f.resting = true;
+        }
+      } else {
+        f.vel.y -= g * dt;
+        f.vel.multiplyScalar(Math.max(0, 1 - 0.2 * dt)); // mild air drag
+        f.mesh.position.addScaledVector(f.vel, dt);
+
+        const sp = f.angVel.length();
+        if (sp > 1e-5) {
+          const dq = new THREE.Quaternion().setFromAxisAngle(this.tmpVec.copy(f.angVel).normalize(), sp * dt);
+          f.mesh.quaternion.premultiply(dq);
+        }
+
+        if (p.floor && f.mesh.position.y < floorY) {
+          f.mesh.position.y = floorY;
+          f.vel.y *= -p.restitution;
+          f.vel.x *= 0.78;
+          f.vel.z *= 0.78;
+          f.angVel.multiplyScalar(0.78);
+          if (Math.abs(f.vel.y) < 0.05 * r) f.vel.y = 0;
+          if (f.vel.lengthSq() < (0.01 * r) * (0.01 * r)) {
+            f.vel.set(0, 0, 0);
+            f.angVel.multiplyScalar(0.5);
+            f.resting = true;
+          }
+        }
+      }
+    }
+
+    if (this.imploding && active === 0) this.imploding = false;
+    for (const m of this.fractureMaterials) m.emissiveIntensity = maxSc * 2.0;
   }
 
   protected render() {

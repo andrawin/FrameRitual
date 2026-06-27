@@ -13,7 +13,10 @@ export interface Fragment {
   axis: THREE.Vector3; // random spin axis
   phase: number; // 0..1 random offset for variety
   band: Band; // assigned band when distribute is on
-  spin: number; // accumulated rotation
+  spin: number; // accumulated rotation (deterministic mode)
+  vel: THREE.Vector3; // linear velocity (physics mode)
+  angVel: THREE.Vector3; // angular velocity axis*speed (physics mode)
+  resting: boolean; // held at rest / settled (physics mode)
 }
 
 interface TriangleSoup {
@@ -257,6 +260,9 @@ export function fracture(
       phase: Math.random(),
       band: bands[fragments.length % 3],
       spin: 0,
+      vel: new THREE.Vector3(),
+      angVel: new THREE.Vector3(),
+      resting: true,
     });
   }
 
